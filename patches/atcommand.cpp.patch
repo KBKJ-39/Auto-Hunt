@@ -1,0 +1,146 @@
+--- a/src/map/atcommand.cpp
++++ b/src/map/atcommand.cpp
+@@ -1856,6 +1856,146 @@
+ 	return 0;
+ }
+ 
++// Add #include "autohunt.hpp" at top of file
++
++/*==========================================
++ * @autohunt [start|stop|status|config]
++ *------------------------------------------*/
++ACMD_FUNC(autohunt){
++	nullpo_retr(-1, sd);
++
++	if (!message || !*message) {
++		if (!autohunt.toggle(sd->id)) {
++			clif_displaymessage(fd, "[Auto-Hunt] Failed to toggle. Are you dead or sitting?");
++		}
++		return 0;
++	}
++
++	char subcmd[256];
++	if (sscanf(message, "%255s", subcmd) != 1) {
++		clif_displaymessage(fd, "Usage: @autohunt [start|stop|status|config]");
++		return 0;
++	}
++
++	if (strcmp(subcmd, "start") == 0) {
++		if (!autohunt.start(sd->id)) {
++			clif_displaymessage(fd, "[Auto-Hunt] Failed to start.");
++		}
++	} else if (strcmp(subcmd, "stop") == 0) {
++		autohunt.stop(sd->id);
++	} else if (strcmp(subcmd, "status") == 0) {
++		s_autohunt_data* ahd = autohunt.getData(sd->id);
++		if (ahd && ahd->active) {
++			char msg[512];
++			snprintf(msg, sizeof(msg),
++				"[Auto-Hunt] Active | State: %d | Skill: %d/%d | HP%%: %d | SP%%: %d | Range: %d",
++				ahd->state, ahd->config.skill_id, ahd->config.skill_level,
++				ahd->config.hp_threshold, ahd->config.sp_threshold, ahd->config.target_range);
++			clif_displaymessage(fd, msg);
++		} else {
++			s_autohunt_config* cfg = autohunt.getConfig(sd->id);
++			char msg[512];
++			snprintf(msg, sizeof(msg),
++				"[Auto-Hunt] Not active | Skill: %d/%d | HP%%: %d | SP%%: %d | Range: %d",
++				cfg->skill_id, cfg->skill_level,
++				cfg->hp_threshold, cfg->sp_threshold, cfg->target_range);
++			clif_displaymessage(fd, msg);
++		}
++	} else if (strcmp(subcmd, "config") == 0) {
++		char rest[256] = "";
++		sscanf(message, "%*s %255[^\n]", rest);
++
++		if (strlen(rest) == 0) {
++			s_autohunt_config* cfg = autohunt.getConfig(sd->id);
++			char msg[512];
++			snprintf(msg, sizeof(msg),
++				"[Auto-Hunt] Config | Skill: %d/%d | HP: %d%% | SP: %d%% | Range: %d | Potion: %s (%d)",
++				cfg->skill_id, cfg->skill_level,
++				cfg->hp_threshold, cfg->sp_threshold,
++				cfg->target_range,
++				cfg->potion_id > 0 ? "ON" : "OFF", cfg->potion_id);
++			clif_displaymessage(fd, msg);
++			clif_displaymessage(fd, "Usage: @autohunt config [skill/hp/sp/range] <value>");
++			return 0;
++		}
++
++		char setting[64] = "";
++		int32 value1 = 0, value2 = 0;
++		sscanf(rest, "%63s %d %d", setting, &value1, &value2);
++
++		s_autohunt_config* cfg = autohunt.getConfig(sd->id);
++
++		if (strcmp(setting, "skill") == 0) {
++			char extra[64] = "";
++			sscanf(rest, "%*s %63s", extra);
++			if (value1 == 0 && strcmp(extra, "auto") == 0) {
++				s_autohunt_data* ahd2 = autohunt.getData(sd->id);
++				if (!ahd2) { autohunt.getConfig(sd->id); ahd2 = autohunt.getData(sd->id); }
++				if (ahd2) autohunt.autoDetectSkill(sd, ahd2);
++			} else if (value1 == 0 && extra[0] == '\0') {
++				cfg->skill_id = 0; cfg->skill_level = 1;
++				clif_displaymessage(fd, "[Auto-Hunt] Skill cleared. Using normal attack only.");
++			} else if (value1 > 0 && value2 > 0) {
++				cfg->skill_id = (uint16)value1; cfg->skill_level = (uint16)value2;
++				char msg[256]; snprintf(msg, sizeof(msg), "[Auto-Hunt] Skill set to %d level %d", value1, value2);
++				clif_displaymessage(fd, msg);
++			} else {
++				clif_displaymessage(fd, "Usage: @autohunt config skill [auto|<id> <lv>|0]");
++			}
++		} else if (strcmp(setting, "hp") == 0) {
++			cfg->hp_threshold = (int16)value1;
++			char msg[256]; snprintf(msg, sizeof(msg), "[Auto-Hunt] HP threshold set to %d%%", value1);
++			clif_displaymessage(fd, msg);
++		} else if (strcmp(setting, "sp") == 0) {
++			cfg->sp_threshold = (int16)value1;
++			char msg[256]; snprintf(msg, sizeof(msg), "[Auto-Hunt] SP threshold set to %d%%", value1);
++			clif_displaymessage(fd, msg);
++		} else if (strcmp(setting, "range") == 0) {
++			if (value1 > 0 && value1 <= 150) {
++				cfg->target_range = (int16)value1;
++				char msg[256]; snprintf(msg, sizeof(msg), "[Auto-Hunt] Range set to %d", value1);
++				clif_displaymessage(fd, msg);
++			} else {
++				clif_displaymessage(fd, "Usage: @autohunt config range <1-150>");
++			}
++		} else if (strcmp(setting, "potion") == 0) {
++			char extra[64] = ""; sscanf(rest, "%*s %63s", extra);
++			if (value1 == 0 && extra[0] == '\0') {
++				cfg->use_potion = false; cfg->potion_id = 0;
++				clif_displaymessage(fd, "[Auto-Hunt] Auto-potion disabled.");
++			} else if (value1 > 0) {
++				cfg->use_potion = true; cfg->potion_id = (t_itemid)value1;
++				char msg[256]; snprintf(msg, sizeof(msg), "[Auto-Hunt] Auto-potion set to item %d", value1);
++				clif_displaymessage(fd, msg);
++			} else {
++				clif_displaymessage(fd, "Usage: @autohunt config potion <item_id|0>");
++			}
++		} else {
++			clif_displaymessage(fd, "Usage: @autohunt config [skill/hp/sp/range/potion] <value>");
++		}
++	} else {
++		clif_displaymessage(fd, "Usage: @autohunt [start|stop|status|config]");
++	}
++
++	return 0;
++}
++
++// Add to ACMD_DEF table:
++//   ACMD_DEF(autohunt),
++
+ ==========================================
+ 
+ ==========================================
+--- a/src/map/map.cpp
++++ b/src/map/map.cpp
+@@ do_init @@
++	do_init_autohunt();
+ 
+@@ do_final @@
++	do_final_autohunt();
+ 
+@@ map_quit @@
++	autohunt.logout(sd);

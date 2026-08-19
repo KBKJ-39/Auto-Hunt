@@ -1,0 +1,8 @@
+# Add to conf/atcommands.yml under the Commands section:
+
+  - Command: autohunt
+    Aliases:
+      - ah
+    Help: |
+      Params: [start|stop|status|config]
+      Toggle or control the Auto-Hunt system.

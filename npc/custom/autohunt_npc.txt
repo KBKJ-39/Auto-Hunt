@@ -1,0 +1,171 @@
+//===== rAthena Script =======================================
+//= Auto-Hunt NPC
+//= Full config menu for Auto-Hunt system
+//= English only (Thai not supported in NPC scripts)
+//============================================================
+
+prontera,155,180,5	script	Auto-Hunt Agent	4_F_JOB_HUNTER,{
+	mes "[Auto-Hunt Agent]";
+	mes "Hello! I can help you set up Auto-Hunt.";
+	mes "It will auto-find and attack monsters for you.";
+	next;
+	switch(select("Start Auto-Hunt:Stop Auto-Hunt:Check Status:Configuration:Cancel")) {
+	case 1:
+		atcommand "@autohunt start";
+		mes "[Auto-Hunt Agent]";
+		mes "Auto-Hunt started!";
+		close;
+	case 2:
+		atcommand "@autohunt stop";
+		mes "[Auto-Hunt Agent]";
+		mes "Auto-Hunt stopped.";
+		close;
+	case 3:
+		atcommand "@autohunt status";
+		mes "[Auto-Hunt Agent]";
+		mes "Check your chat for status info.";
+		close;
+	case 4:
+		callsub S_Config;
+	case 5:
+		mes "[Auto-Hunt Agent]";
+		mes "See you!";
+		close;
+	}
+
+S_Config:
+	mes "[Auto-Hunt Agent]";
+	mes "=== Configuration ===";
+	mes "Pick a setting to change:";
+	next;
+	switch(select("Skill Setting:HP Threshold:SP Threshold:Search Range:Auto-Potion:Show Config:Back")) {
+	case 1: callsub S_Skill;
+	case 2: callsub S_HP;
+	case 3: callsub S_SP;
+	case 4: callsub S_Range;
+	case 5: callsub S_Potion;
+	case 6:
+		atcommand "@autohunt config";
+		mes "[Auto-Hunt Agent]";
+		mes "Check your chat for config info.";
+		close;
+	case 7: close;
+	}
+
+S_Skill:
+	mes "[Auto-Hunt Agent]";
+	mes "=== Skill Setting ===";
+	mes "Choose a skill source:";
+	next;
+	switch(select("Auto-detect from hotbar:Specific skill:Normal attack only:Back")) {
+	case 1:
+		atcommand "@autohunt config skill auto";
+		mes "[Auto-Hunt Agent]";
+		mes "Auto-detecting skill from your hotbar.";
+		close;
+	case 2: callsub S_SkillPick;
+	case 3:
+		atcommand "@autohunt config skill 0";
+		mes "[Auto-Hunt Agent]";
+		mes "Normal attack only.";
+		close;
+	case 4: callsub S_Config;
+	}
+
+S_SkillPick:
+	mes "[Auto-Hunt Agent]";
+	mes "=== Pick a Skill ===";
+	next;
+	switch(select("Bash (7) Lv10:Magnum Break (79) Lv10:Bowling Bash (62) Lv10:Pierce (56) Lv10:Double Strafe (45) Lv10:Grimtooth (172) Lv5:Meteor Assault (406) Lv5:Grand Cross (218) Lv10:Storm Gust (89) Lv10:Meteor (83) Lv10:Holy Light (74) Lv5:Finger Offensive (46) Lv5:Shield Boomerang (219) Lv10:Back")) {
+	case 1:  atcommand "@autohunt config skill 7 10";   mes "[Auto-Hunt Agent]"; mes "Skill: Bash Lv10"; close;
+	case 2:  atcommand "@autohunt config skill 79 10";  mes "[Auto-Hunt Agent]"; mes "Skill: Magnum Break Lv10"; close;
+	case 3:  atcommand "@autohunt config skill 62 10";  mes "[Auto-Hunt Agent]"; mes "Skill: Bowling Bash Lv10"; close;
+	case 4:  atcommand "@autohunt config skill 56 10";  mes "[Auto-Hunt Agent]"; mes "Skill: Pierce Lv10"; close;
+	case 5:  atcommand "@autohunt config skill 45 10";  mes "[Auto-Hunt Agent]"; mes "Skill: Double Strafe Lv10"; close;
+	case 6:  atcommand "@autohunt config skill 172 5";  mes "[Auto-Hunt Agent]"; mes "Skill: Grimtooth Lv5"; close;
+	case 7:  atcommand "@autohunt config skill 406 5";  mes "[Auto-Hunt Agent]"; mes "Skill: Meteor Assault Lv5"; close;
+	case 8:  atcommand "@autohunt config skill 218 10"; mes "[Auto-Hunt Agent]"; mes "Skill: Grand Cross Lv10"; close;
+	case 9:  atcommand "@autohunt config skill 89 10";  mes "[Auto-Hunt Agent]"; mes "Skill: Storm Gust Lv10"; close;
+	case 10: atcommand "@autohunt config skill 83 10";  mes "[Auto-Hunt Agent]"; mes "Skill: Meteor Lv10"; close;
+	case 11: atcommand "@autohunt config skill 74 5";   mes "[Auto-Hunt Agent]"; mes "Skill: Holy Light Lv5"; close;
+	case 12: atcommand "@autohunt config skill 46 5";   mes "[Auto-Hunt Agent]"; mes "Skill: Finger Offensive Lv5"; close;
+	case 13: atcommand "@autohunt config skill 219 10"; mes "[Auto-Hunt Agent]"; mes "Skill: Shield Boomerang Lv10"; close;
+	case 14: callsub S_Skill;
+	}
+
+S_HP:
+	mes "[Auto-Hunt Agent]";
+	mes "=== HP Threshold ===";
+	next;
+	switch(select("10%:20%:30%:40%:50%:Custom:Back")) {
+	case 1: atcommand "@autohunt config hp 10"; mes "[Auto-Hunt Agent]"; mes "HP threshold set to 10%."; close;
+	case 2: atcommand "@autohunt config hp 20"; mes "[Auto-Hunt Agent]"; mes "HP threshold set to 20%."; close;
+	case 3: atcommand "@autohunt config hp 30"; mes "[Auto-Hunt Agent]"; mes "HP threshold set to 30%."; close;
+	case 4: atcommand "@autohunt config hp 40"; mes "[Auto-Hunt Agent]"; mes "HP threshold set to 40%."; close;
+	case 5: atcommand "@autohunt config hp 50"; mes "[Auto-Hunt Agent]"; mes "HP threshold set to 50%."; close;
+	case 6:
+		mes "[Auto-Hunt Agent]"; mes "Type the HP percent (1-100):";
+		input .@val;
+		if (.@val < 1 || .@val > 100) { mes "[Auto-Hunt Agent]"; mes "Invalid value."; close; }
+		atcommand "@autohunt config hp " + .@val;
+		mes "[Auto-Hunt Agent]"; mes "HP threshold set to " + .@val + "%."; close;
+	case 7: callsub S_Config;
+	}
+
+S_SP:
+	mes "[Auto-Hunt Agent]";
+	mes "=== SP Threshold ===";
+	next;
+	switch(select("10%:20%:30%:40%:50%:Custom:Back")) {
+	case 1: atcommand "@autohunt config sp 10"; mes "[Auto-Hunt Agent]"; mes "SP threshold set to 10%."; close;
+	case 2: atcommand "@autohunt config sp 20"; mes "[Auto-Hunt Agent]"; mes "SP threshold set to 20%."; close;
+	case 3: atcommand "@autohunt config sp 30"; mes "[Auto-Hunt Agent]"; mes "SP threshold set to 30%."; close;
+	case 4: atcommand "@autohunt config sp 40"; mes "[Auto-Hunt Agent]"; mes "SP threshold set to 40%."; close;
+	case 5: atcommand "@autohunt config sp 50"; mes "[Auto-Hunt Agent]"; mes "SP threshold set to 50%."; close;
+	case 6:
+		mes "[Auto-Hunt Agent]"; mes "Type the SP percent (1-100):";
+		input .@val;
+		if (.@val < 1 || .@val > 100) { mes "[Auto-Hunt Agent]"; mes "Invalid value."; close; }
+		atcommand "@autohunt config sp " + .@val;
+		mes "[Auto-Hunt Agent]"; mes "SP threshold set to " + .@val + "%."; close;
+	case 7: callsub S_Config;
+	}
+
+S_Range:
+	mes "[Auto-Hunt Agent]";
+	mes "=== Search Range ===";
+	next;
+	switch(select("10:15:20:25:30:40:50:75:100:150:Custom:Back")) {
+	case 1:  atcommand "@autohunt config range 10";  mes "[Auto-Hunt Agent]"; mes "Range set to 10 cells."; close;
+	case 2:  atcommand "@autohunt config range 15";  mes "[Auto-Hunt Agent]"; mes "Range set to 15 cells."; close;
+	case 3:  atcommand "@autohunt config range 20";  mes "[Auto-Hunt Agent]"; mes "Range set to 20 cells."; close;
+	case 4:  atcommand "@autohunt config range 25";  mes "[Auto-Hunt Agent]"; mes "Range set to 25 cells."; close;
+	case 5:  atcommand "@autohunt config range 30";  mes "[Auto-Hunt Agent]"; mes "Range set to 30 cells."; close;
+	case 6:  atcommand "@autohunt config range 40";  mes "[Auto-Hunt Agent]"; mes "Range set to 40 cells."; close;
+	case 7:  atcommand "@autohunt config range 50";  mes "[Auto-Hunt Agent]"; mes "Range set to 50 cells."; close;
+	case 8:  atcommand "@autohunt config range 75";  mes "[Auto-Hunt Agent]"; mes "Range set to 75 cells."; close;
+	case 9:  atcommand "@autohunt config range 100"; mes "[Auto-Hunt Agent]"; mes "Range set to 100 cells."; close;
+	case 10: atcommand "@autohunt config range 150"; mes "[Auto-Hunt Agent]"; mes "Range set to 150 cells."; close;
+	case 11:
+		mes "[Auto-Hunt Agent]"; mes "Type the range (1-150):";
+		input .@val;
+		if (.@val < 1 || .@val > 150) { mes "[Auto-Hunt Agent]"; mes "Invalid value."; close; }
+		atcommand "@autohunt config range " + .@val;
+		mes "[Auto-Hunt Agent]"; mes "Range set to " + .@val + " cells."; close;
+	case 12: callsub S_Config;
+	}
+
+S_Potion:
+	mes "[Auto-Hunt Agent]";
+	mes "=== Auto-Potion ===";
+	next;
+	switch(select("Red Potion (501):Orange Potion (502):White Potion (504):White Slim (547):Yellow Slim (546):Disable:Back")) {
+	case 1: atcommand "@autohunt config potion 501"; mes "[Auto-Hunt Agent]"; mes "Auto-potion: Red Potion (HP 150)"; close;
+	case 2: atcommand "@autohunt config potion 502"; mes "[Auto-Hunt Agent]"; mes "Auto-potion: Orange Potion (HP 200)"; close;
+	case 3: atcommand "@autohunt config potion 504"; mes "[Auto-Hunt Agent]"; mes "Auto-potion: White Potion (HP 400)"; close;
+	case 4: atcommand "@autohunt config potion 547"; mes "[Auto-Hunt Agent]"; mes "Auto-potion: White Slim Potion (HP 500)"; close;
+	case 5: atcommand "@autohunt config potion 546"; mes "[Auto-Hunt Agent]"; mes "Auto-potion: Yellow Slim Potion (HP 300)"; close;
+	case 6: atcommand "@autohunt config potion 0";   mes "[Auto-Hunt Agent]"; mes "Auto-potion disabled."; close;
+	case 7: callsub S_Config;
+	}
+}

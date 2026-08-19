@@ -1,0 +1,23 @@
+#!/bin/bash
+# Auto-Hunt patch for rAthena
+# Run from rAthena root: bash patches/autohunt-all.patch
+# Or manually follow instructions below
+
+echo "=== Auto-Hunt Patch ==="
+echo ""
+echo "This is a manual patch guide."
+echo "Follow the steps in README.md to install."
+echo ""
+echo "Files to add:"
+echo "  src/map/autohunt.hpp"
+echo "  src/map/autohunt.cpp"
+echo "  npc/custom/autohunt_npc.txt"
+echo ""
+echo "Files to modify:"
+echo "  src/map/atcommand.cpp  (add #include, ACMD_FUNC, ACMD_DEF)"
+echo "  src/map/map.cpp        (add init/final/logout)"
+echo "  conf/atcommands.yml    (add @autohunt entry)"
+echo "  conf/groups.yml        (add autohunt: true)"
+echo "  npc/scripts_custom.conf (add npc line)"
+echo ""
+echo "See README.md for full instructions."
