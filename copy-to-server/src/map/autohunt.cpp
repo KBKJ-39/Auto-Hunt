@@ -265,9 +265,9 @@ void AutoHuntManager::process(int32 char_id, t_tick tick) {
 		return; // Player stopped auto-hunt due to safety condition
 	}
 
-	// Check if stuck (only when not walking and not attacking)
-	if (ahd->state == AHUNT_MOVING) {
-		if (sd->ud.walktimer == -1) {
+	// Check if stuck (MOVING or ATTACKING with target too far)
+	if (ahd->state == AHUNT_MOVING || ahd->state == AHUNT_ATTACKING) {
+		if (sd->ud.walktimer == -1 && sd->ud.attacktimer == -1) {
 			ahd->stuck_count++;
 			if (ahd->stuck_count >= AUTOHUNT_STUCK_THRESHOLD) {
 				if (ahd->target_id != 0) {
@@ -276,12 +276,14 @@ void AutoHuntManager::process(int32 char_id, t_tick tick) {
 				ShowInfo("Auto-Hunt: %s stuck, rescan (blacklisted target %d).\n", sd->status.name, ahd->target_id);
 				ahd->target_id = 0;
 				ahd->stuck_count = 0;
+				unit_stop_attack(sd);
 
 				if (ahd->teleport_count < 3) {
 					ahd->state = AHUNT_TELEPORTING;
 				} else {
 					ahd->blacklist.clear();
 					ahd->teleport_count = 0;
+					ahd->walk_fail_count = 0;
 					ahd->state = AHUNT_SCANNING;
 				}
 			}
@@ -293,13 +295,22 @@ void AutoHuntManager::process(int32 char_id, t_tick tick) {
 	// Detect idle: stuck in SCANNING with no targets for too long
 	if (ahd->state == AHUNT_SCANNING && ahd->target_id == 0) {
 		ahd->idle_count++;
-		if (ahd->idle_count >= 6) { // 3 seconds with no target
+		if (ahd->idle_count >= 6) {
 			ahd->idle_count = 0;
+			// Clean expired blacklist entries
+			t_tick now = gettick();
+			for (auto it = ahd->blacklist.begin(); it != ahd->blacklist.end(); ) {
+				if (now >= it->second) {
+					it = ahd->blacklist.erase(it);
+				} else {
+					++it;
+				}
+			}
+
 			if (ahd->teleport_count < 3) {
 				ShowInfo("Auto-Hunt: %s idle (no targets), teleporting.\n", sd->status.name);
 				ahd->state = AHUNT_TELEPORTING;
 			} else {
-				// No fly wings — clear blacklist and keep scanning
 				ahd->blacklist.clear();
 				ahd->teleport_count = 0;
 				if (findLootTarget(sd, ahd)) {
@@ -309,6 +320,18 @@ void AutoHuntManager::process(int32 char_id, t_tick tick) {
 		}
 	} else {
 		ahd->idle_count = 0;
+	}
+
+	// PAUSED timeout: resume after 15 seconds even if HP/SP not recovered
+	if (ahd->state == AHUNT_PAUSED) {
+		ahd->paused_count++;
+		if (ahd->paused_count >= 30) {
+			ahd->paused_count = 0;
+			ahd->state = AHUNT_SCANNING;
+			clif_displaymessage(sd->fd, "[Auto-Hunt] Resuming (timeout).");
+		}
+	} else {
+		ahd->paused_count = 0;
 	}
 
 	// Process current state
@@ -610,9 +633,11 @@ void AutoHuntManager::processLooting(map_session_data* sd, s_autohunt_data* ahd,
 void AutoHuntManager::processTeleporting(map_session_data* sd, s_autohunt_data* ahd, t_tick tick) {
 	if (doTeleport(sd, ahd)) {
 		ahd->state = AHUNT_SCANNING;
+		ahd->walk_fail_count = 0;
 	} else {
-		// Failed to teleport, try again next tick
-		// Or stop if out of fly wings
+		// No fly wing found — doTeleport already set state to SCANNING
+		ahd->state = AHUNT_SCANNING;
+		ahd->walk_fail_count = 0;
 	}
 }
 
