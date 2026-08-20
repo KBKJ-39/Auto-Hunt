@@ -265,9 +265,9 @@ void AutoHuntManager::process(int32 char_id, t_tick tick) {
 		return; // Player stopped auto-hunt due to safety condition
 	}
 
-	// Check if stuck (MOVING or ATTACKING with target too far)
-	if (ahd->state == AHUNT_MOVING || ahd->state == AHUNT_ATTACKING) {
-		if (sd->ud.walktimer == -1 && sd->ud.attacktimer == -1) {
+	// Check if stuck (only when MOVING — not attacking)
+	if (ahd->state == AHUNT_MOVING) {
+		if (sd->ud.walktimer == -1) {
 			ahd->stuck_count++;
 			if (ahd->stuck_count >= AUTOHUNT_STUCK_THRESHOLD) {
 				if (ahd->target_id != 0) {
