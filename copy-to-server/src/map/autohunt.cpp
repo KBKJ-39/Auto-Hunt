@@ -903,33 +903,9 @@ bool AutoHuntManager::usePotion(map_session_data* sd, s_autohunt_data* ahd) {
 }
 
 /*===========
- * Teleport using Fly Wing (from skill hotbar or inventory)
+ * Teleport using Fly Wing items only
  *------------------------------------------*/
 bool AutoHuntManager::doTeleport(map_session_data* sd, s_autohunt_data* ahd) {
-	// 1. Check hotbar for teleport skill (AL_TELEPORT=26, NPC_RECALL=27, etc.)
-	for (int32 i = 0; i < MAX_HOTKEYS_DB; i++) {
-		if (sd->status.hotkeys[i].type == 1) { // skill type
-			uint16 skill_id = sd->status.hotkeys[i].id;
-			uint16 skill_lv = sd->status.hotkeys[i].lv;
-			if (skill_id == 0) continue;
-			// Known teleport skills: AL_TELEPORT(26), NPC_TELEPORT(many IDs)
-			// Check if skill name contains "Teleport" or is known ID
-			if (skill_id == AL_TELEPORT) {
-				if (pc_checkskill(sd, skill_id) > 0) {
-					int32 sp_cost = skill_get_sp(skill_id, skill_lv);
-					if (sd->battle_status.sp >= sp_cost) {
-						unit_skilluse_id(sd, sd->id, skill_id, skill_lv);
-						ahd->target_id = 0;
-						ahd->stuck_count = 0;
-						ahd->teleport_count++;
-						return true;
-					}
-				}
-			}
-		}
-	}
-
-	// 2. Fallback: search inventory for fly wing items (601, 12212, 12213, etc.)
 	int32 flywing_ids[] = { 601, 12212, 12213, 12214, 12215, 12216, 12217 };
 	for (int i = 0; i < sizeof(flywing_ids)/sizeof(flywing_ids[0]); i++) {
 		int32 idx = pc_search_inventory(sd, flywing_ids[i]);
@@ -944,7 +920,7 @@ bool AutoHuntManager::doTeleport(map_session_data* sd, s_autohunt_data* ahd) {
 		}
 	}
 
-	clif_displaymessage(sd->fd, "[Auto-Hunt] No teleport skill or Fly Wing found! Stopping.");
+	clif_displaymessage(sd->fd, "[Auto-Hunt] No Fly Wing found! Stopping.");
 	stop(sd->status.char_id);
 	return false;
 }
