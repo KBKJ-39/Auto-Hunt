@@ -142,6 +142,7 @@ bool AutoHuntManager::start(int32 char_id) {
 	ahd->stuck_count = 0;
 	ahd->teleport_count = 0;
 	ahd->walk_fail_count = 0;
+	ahd->idle_count = 0;
 	ahd->blacklist.clear();
 
 	ahd->timer_id = add_timer_interval(
@@ -292,6 +293,25 @@ void AutoHuntManager::process(int32 char_id, t_tick tick) {
 		}
 	}
 
+	// Detect idle: stuck in SCANNING with no targets for too long
+	if (ahd->state == AHUNT_SCANNING && ahd->target_id == 0) {
+		ahd->idle_count++;
+		if (ahd->idle_count >= 10) { // 10 ticks = 5 seconds with no target
+			ahd->idle_count = 0;
+			if (ahd->teleport_count < 3) {
+				ShowInfo("Auto-Hunt: %s idle (no targets), teleporting.\n", sd->status.name);
+				ahd->state = AHUNT_TELEPORTING;
+			} else {
+				// Also try to loot even if no mob target
+				if (findLootTarget(sd, ahd)) {
+					ahd->state = AHUNT_LOOTING;
+				}
+			}
+		}
+	} else {
+		ahd->idle_count = 0;
+	}
+
 	// Process current state
 	switch (ahd->state) {
 		case AHUNT_IDLE:
@@ -337,6 +357,9 @@ void AutoHuntManager::processScanning(map_session_data* sd, s_autohunt_data* ahd
 				sd->status.name, bl->x, bl->y, distance_blxy(sd, bl->x, bl->y));
 		}
 		ahd->state = AHUNT_MOVING;
+	} else if (findLootTarget(sd, ahd)) {
+		// No mob target, but found loot nearby
+		ahd->state = AHUNT_LOOTING;
 	} else {
 		// No target found, stay in scanning state
 	}

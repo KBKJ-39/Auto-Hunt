@@ -104,6 +104,7 @@ struct s_autohunt_data {
 	uint8              stuck_count;  // How many ticks stuck
 	uint8              teleport_count; // Consecutive teleports (give up after 3)
 	uint8              walk_fail_count; // Consecutive walk failures
+	uint8              idle_count;    // Ticks with no target found
 
 	// Target blacklist: target_id -> expiry tick (skip unreachable targets)
 	std::unordered_map<int32, t_tick> blacklist;
@@ -120,7 +121,8 @@ struct s_autohunt_data {
 		stuck_y(0),
 		stuck_count(0),
 		teleport_count(0),
-		walk_fail_count(0)
+		walk_fail_count(0),
+		idle_count(0)
 	{}
 };
 
