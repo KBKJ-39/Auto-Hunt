@@ -270,21 +270,18 @@ void AutoHuntManager::process(int32 char_id, t_tick tick) {
 		if (sd->ud.walktimer == -1) {
 			ahd->stuck_count++;
 			if (ahd->stuck_count >= AUTOHUNT_STUCK_THRESHOLD) {
-				// Blacklist this target before moving on
 				if (ahd->target_id != 0) {
-					ahd->blacklist[ahd->target_id] = gettick() + 10000; // skip for 10s
+					ahd->blacklist[ahd->target_id] = gettick() + 10000;
 				}
 				ShowInfo("Auto-Hunt: %s stuck, rescan (blacklisted target %d).\n", sd->status.name, ahd->target_id);
 				ahd->target_id = 0;
 				ahd->stuck_count = 0;
 
-				// After 3 failed teleports, give up teleporting
-				if (ahd->teleport_count >= 3) {
-					ahd->state = AHUNT_SCANNING;
-					ahd->teleport_count = 0;
-				} else if (ahd->config.teleport_on_aggro) {
+				if (ahd->teleport_count < 3) {
 					ahd->state = AHUNT_TELEPORTING;
 				} else {
+					ahd->blacklist.clear();
+					ahd->teleport_count = 0;
 					ahd->state = AHUNT_SCANNING;
 				}
 			}
@@ -296,13 +293,15 @@ void AutoHuntManager::process(int32 char_id, t_tick tick) {
 	// Detect idle: stuck in SCANNING with no targets for too long
 	if (ahd->state == AHUNT_SCANNING && ahd->target_id == 0) {
 		ahd->idle_count++;
-		if (ahd->idle_count >= 10) { // 10 ticks = 5 seconds with no target
+		if (ahd->idle_count >= 6) { // 3 seconds with no target
 			ahd->idle_count = 0;
 			if (ahd->teleport_count < 3) {
 				ShowInfo("Auto-Hunt: %s idle (no targets), teleporting.\n", sd->status.name);
 				ahd->state = AHUNT_TELEPORTING;
 			} else {
-				// Also try to loot even if no mob target
+				// No fly wings — clear blacklist and keep scanning
+				ahd->blacklist.clear();
+				ahd->teleport_count = 0;
 				if (findLootTarget(sd, ahd)) {
 					ahd->state = AHUNT_LOOTING;
 				}
@@ -922,10 +921,8 @@ bool AutoHuntManager::doTeleport(map_session_data* sd, s_autohunt_data* ahd) {
 		}
 	}
 
-	// No fly wing found — just continue scanning, don't stop
-	ahd->teleport_count = 0;
-	ahd->stuck_count = 0;
-	ahd->walk_fail_count = 0;
+	// No fly wing found — clear blacklist so targets can be retried, keep scanning
+	ahd->blacklist.clear();
 	ahd->state = AHUNT_SCANNING;
 	return false;
 }
