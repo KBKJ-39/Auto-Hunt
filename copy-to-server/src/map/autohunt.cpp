@@ -907,9 +907,7 @@ bool AutoHuntManager::usePotion(map_session_data* sd, s_autohunt_data* ahd) {
  *------------------------------------------*/
 bool AutoHuntManager::doTeleport(map_session_data* sd, s_autohunt_data* ahd) {
 	int32 flywing_ids[] = {
-		601, 602, 12003, 12212, 12323, 12324, 12438, 12494,
-		12507, 12508, 12509, 12510, 12845, 12887,
-		14582, 14583, 14584, 14585, 23023, 23280, 23288, 23338
+		601, 12212, 12323, 12438, 12494, 12887, 23023, 23280, 23288, 23338
 	};
 	for (int i = 0; i < sizeof(flywing_ids)/sizeof(flywing_ids[0]); i++) {
 		int32 idx = pc_search_inventory(sd, flywing_ids[i]);
