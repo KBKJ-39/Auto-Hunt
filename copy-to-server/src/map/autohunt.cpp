@@ -1,6 +1,6 @@
 //=============================================================
 // Auto-Hunt System for rAthena — Core Implementation
-// Version: 2.1
+// Version: 3.0
 // See autohunt.hpp for version history
 //=============================================================
 
@@ -30,8 +30,6 @@ AutoHuntManager autohunt;
 
 // Timer interval in milliseconds
 #define AUTOHUNT_INTERVAL 500
-
-#define AUTOHUNT_ITEMID_WING_OF_FLY 601
 
 // Maximum search range
 #define AUTOHUNT_MAX_RANGE 150
@@ -137,20 +135,13 @@ bool AutoHuntManager::start(int32 char_id) {
 		return false;
 	}
 
-	// Check for fly wing if teleport enabled
-	if (ahd->config.teleport_on_aggro) {
-		int32 idx = pc_search_inventory(sd, AUTOHUNT_ITEMID_WING_OF_FLY);
-		if (idx < 0) {
-			clif_displaymessage(sd->fd, "[Auto-Hunt] Need Fly Wing for teleport feature.");
-			return false;
-		}
-	}
-
 	// Start the timer
 	ahd->active = true;
 	ahd->state = AHUNT_SCANNING;
 	ahd->target_id = 0;
 	ahd->stuck_count = 0;
+	ahd->teleport_count = 0;
+	ahd->blacklist.clear();
 
 	ahd->timer_id = add_timer_interval(
 		gettick() + AUTOHUNT_INTERVAL,
@@ -277,10 +268,23 @@ void AutoHuntManager::process(int32 char_id, t_tick tick) {
 		if (sd->ud.walktimer == -1) {
 			ahd->stuck_count++;
 			if (ahd->stuck_count >= AUTOHUNT_STUCK_THRESHOLD) {
-				ShowInfo("Auto-Hunt: Player %s stuck, rescanning.\n", sd->status.name);
+				// Blacklist this target before moving on
+				if (ahd->target_id != 0) {
+					ahd->blacklist[ahd->target_id] = gettick() + 10000; // skip for 10s
+				}
+				ShowInfo("Auto-Hunt: %s stuck, rescan (blacklisted target %d).\n", sd->status.name, ahd->target_id);
 				ahd->target_id = 0;
-				ahd->state = AHUNT_SCANNING;
 				ahd->stuck_count = 0;
+
+				// After 3 failed teleports, give up teleporting
+				if (ahd->teleport_count >= 3) {
+					ahd->state = AHUNT_SCANNING;
+					ahd->teleport_count = 0;
+				} else if (ahd->config.teleport_on_aggro) {
+					ahd->state = AHUNT_TELEPORTING;
+				} else {
+					ahd->state = AHUNT_SCANNING;
+				}
 			}
 		} else {
 			ahd->stuck_count = 0;
@@ -530,8 +534,25 @@ void AutoHuntManager::processLooting(map_session_data* sd, s_autohunt_data* ahd,
 			}
 
 			bool walk_result = unit_walktoxy(sd, target_x, target_y, 2);
+
+			// If direct path blocked, try nearby cells (same fallback as processMoving)
 			if (!walk_result) {
-				// Item unreachable
+				int16 dir_x = (step_x > 0) ? 1 : (step_x < 0) ? -1 : 0;
+				int16 dir_y = (step_y > 0) ? 1 : (step_y < 0) ? -1 : 0;
+				int16 try_x[] = { dir_x, dir_x, 0, dir_x, -dir_x, 1, 0, -1, 0 };
+				int16 try_y[] = { dir_y, 0, dir_y, -dir_y, dir_y, 0, 1, 0, -1 };
+				for (int i = 0; i < 9; i++) {
+					int16 nx = sd->x + try_x[i] * 3;
+					int16 ny = sd->y + try_y[i] * 3;
+					if (unit_walktoxy(sd, nx, ny, 2)) {
+						walk_result = true;
+						break;
+					}
+				}
+			}
+
+			if (!walk_result) {
+				// Item unreachable - skip it
 				ahd->target_id = 0;
 				ahd->state = AHUNT_SCANNING;
 			}
@@ -666,6 +687,11 @@ static int32 autohunt_target_sub(block_list* bl, va_list ap) {
 		return 0;
 	}
 
+	// Skip blacklisted targets (unreachable)
+	if (ahd->blacklist.count(bl->id) && gettick() < ahd->blacklist[bl->id]) {
+		return 0;
+	}
+
 	// Skip mobs that can't be attacked
 	if (!status_has_mode(&md->status, MD_CANATTACK)) {
 		return 0;
@@ -764,7 +790,12 @@ bool AutoHuntManager::findLootTarget(map_session_data* sd, s_autohunt_data* ahd)
 	ldt.best_id = 0;
 	ldt.best_dist = 0;
 
-	map_foreachinrange(autohunt_loot_sub, sd, 15, BL_ITEM, &ldt);
+	int16 range = ahd->config.target_range;
+	if (range > AUTOHUNT_MAX_RANGE) {
+		range = AUTOHUNT_MAX_RANGE;
+	}
+
+	map_foreachinrange(autohunt_loot_sub, sd, range, BL_ITEM, &ldt);
 
 	if (ldt.best_id != 0) {
 		ahd->target_id = ldt.best_id;
@@ -806,13 +837,13 @@ bool AutoHuntManager::useSkill(map_session_data* sd, s_autohunt_data* ahd) {
 		return false;
 	}
 
-	// Determine skill type and use appropriate castend
+	// Determine skill type and use proper skill system (no blocking)
 	if (skill_get_casttype(ahd->config.skill_id) == CAST_GROUND) {
-		// Ground skill - cast at target position
-		skill_castend_pos2(sd, bl->x, bl->y, ahd->config.skill_id, ahd->config.skill_level, tick, 0);
+		// Ground skill - use unit_skilluse_pos (handles cast time properly)
+		unit_skilluse_pos(sd, bl->x, bl->y, ahd->config.skill_id, ahd->config.skill_level);
 	} else {
-		// Target skill - cast on target
-		skill_castend_damage_id(sd, bl, ahd->config.skill_id, ahd->config.skill_level, tick, 0);
+		// Target skill - use unit_skilluse_id (handles cast time properly)
+		unit_skilluse_id(sd, bl->id, ahd->config.skill_id, ahd->config.skill_level);
 	}
 
 	return true;
@@ -837,27 +868,50 @@ bool AutoHuntManager::usePotion(map_session_data* sd, s_autohunt_data* ahd) {
 }
 
 /*===========
- * Teleport using Fly Wing
+ * Teleport using Fly Wing (from skill hotbar or inventory)
  *------------------------------------------*/
 bool AutoHuntManager::doTeleport(map_session_data* sd, s_autohunt_data* ahd) {
-	int32 idx = pc_search_inventory(sd, AUTOHUNT_ITEMID_WING_OF_FLY);
-	if (idx < 0) {
-		clif_displaymessage(sd->fd, "[Auto-Hunt] No Fly Wings! Stopping.");
-		stop(sd->status.char_id);
-		return false;
+	// 1. Check hotbar for teleport skill (AL_TELEPORT=26, NPC_RECALL=27, etc.)
+	for (int32 i = 0; i < MAX_HOTKEYS_DB; i++) {
+		if (sd->status.hotkeys[i].type == 1) { // skill type
+			uint16 skill_id = sd->status.hotkeys[i].id;
+			uint16 skill_lv = sd->status.hotkeys[i].lv;
+			if (skill_id == 0) continue;
+			// Known teleport skills: AL_TELEPORT(26), NPC_TELEPORT(many IDs)
+			// Check if skill name contains "Teleport" or is known ID
+			if (skill_id == AL_TELEPORT) {
+				if (pc_checkskill(sd, skill_id) > 0) {
+					int32 sp_cost = skill_get_sp(skill_id, skill_lv);
+					if (sd->battle_status.sp >= sp_cost) {
+						unit_skilluse_id(sd, sd->id, skill_id, skill_lv);
+						ahd->target_id = 0;
+						ahd->stuck_count = 0;
+						ahd->teleport_count++;
+						return true;
+					}
+				}
+			}
+		}
 	}
 
-	// Use the fly wing
-	pc_useitem(sd, idx);
+	// 2. Fallback: search inventory for fly wing items (601, 12212, 12213, etc.)
+	int32 flywing_ids[] = { 601, 12212, 12213, 12214, 12215, 12216, 12217 };
+	for (int i = 0; i < sizeof(flywing_ids)/sizeof(flywing_ids[0]); i++) {
+		int32 idx = pc_search_inventory(sd, flywing_ids[i]);
+		if (idx >= 0) {
+			pc_useitem(sd, idx);
+			unit_stop_walking(sd, USW_FIXPOS);
+			unit_stop_attack(sd);
+			ahd->target_id = 0;
+			ahd->stuck_count = 0;
+			ahd->teleport_count++;
+			return true;
+		}
+	}
 
-	// Stop current actions
-	unit_stop_walking(sd, USW_FIXPOS);
-	unit_stop_attack(sd);
-
-	ahd->target_id = 0;
-	ahd->stuck_count = 0;
-
-	return true;
+	clif_displaymessage(sd->fd, "[Auto-Hunt] No teleport skill or Fly Wing found! Stopping.");
+	stop(sd->status.char_id);
+	return false;
 }
 
 /*===========

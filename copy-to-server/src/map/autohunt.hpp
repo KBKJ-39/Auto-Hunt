@@ -1,6 +1,6 @@
 //=============================================================
 // Auto-Hunt System for rAthena
-// Version: 2.1
+// Version: 3.0
 // Changelog:
 //   v1.0 - Initial implementation (state machine, target scan, attack, loot, teleport)
 //   v1.1 - Config system (@autohunt config skill/hp/sp/range/potion)
@@ -19,6 +19,12 @@
 //          - findLootTarget actually called now
 //          - processLooting uses capped steps (same as processMoving)
 //          - Chain loot: pick up multiple items nearby
+//   v3.0 - Major fixes:
+//          - Teleport: stuck_count triggers TELEPORTING after threshold
+//          - Target blacklist: skip unreachable targets for 10 seconds
+//          - Skill cast: use unit_skilluse_id/pos (no blocking)
+//          - Loot range: configurable (default 30, same as target_range)
+//          - Loot capped walk: same fallback as processMoving
 //=============================================================
 
 #ifndef AUTOHUNT_HPP
@@ -27,6 +33,7 @@
 #include "../common/cbasetypes.hpp"
 #include "../common/mmo.hpp"
 #include <unordered_map>
+#include <vector>
 
 class map_session_data;
 
@@ -95,6 +102,10 @@ struct s_autohunt_data {
 	int16              stuck_x;      // Last known position
 	int16              stuck_y;      // Last known position
 	uint8              stuck_count;  // How many ticks stuck
+	uint8              teleport_count; // Consecutive teleports (give up after 3)
+
+	// Target blacklist: target_id -> expiry tick (skip unreachable targets)
+	std::unordered_map<int32, t_tick> blacklist;
 
 	s_autohunt_config  config;       // Player configuration
 
@@ -106,7 +117,8 @@ struct s_autohunt_data {
 		stuck_timer(-1),
 		stuck_x(0),
 		stuck_y(0),
-		stuck_count(0)
+		stuck_count(0),
+		teleport_count(0)
 	{}
 };
 
