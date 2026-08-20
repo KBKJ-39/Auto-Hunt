@@ -141,6 +141,7 @@ bool AutoHuntManager::start(int32 char_id) {
 	ahd->target_id = 0;
 	ahd->stuck_count = 0;
 	ahd->teleport_count = 0;
+	ahd->walk_fail_count = 0;
 	ahd->blacklist.clear();
 
 	ahd->timer_id = add_timer_interval(
@@ -423,8 +424,19 @@ void AutoHuntManager::processMoving(map_session_data* sd, s_autohunt_data* ahd, 
 	if (!walk_result) {
 		ShowInfo("Auto-Hunt: %s walk FAILED to %d,%d (player at %d,%d), rescan\n",
 			sd->status.name, bl->x, bl->y, sd->x, sd->y);
+		ahd->walk_fail_count++;
+		ahd->blacklist[ahd->target_id] = gettick() + 15000;
 		ahd->target_id = 0;
-		ahd->state = AHUNT_SCANNING;
+
+		// After 3 consecutive walk failures, teleport
+		if (ahd->walk_fail_count >= 3 && ahd->teleport_count < 3) {
+			ahd->walk_fail_count = 0;
+			ahd->state = AHUNT_TELEPORTING;
+		} else {
+			ahd->state = AHUNT_SCANNING;
+		}
+	} else {
+		ahd->walk_fail_count = 0;
 	}
 }
 
